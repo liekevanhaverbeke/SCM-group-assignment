@@ -10,10 +10,10 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # ─────────────────────────────────────────────
 # 1. Load data
 # ─────────────────────────────────────────────
-demand_df = pd.read_excel("PPP_stu_demand.xlsx")   # units sold
-stock_df  = pd.read_excel("PPP_stu_stock.xlsx")    # units available
-product_df = pd.read_excel("PPP_stu_products.xlsx") # product attributes (gender/category)
-details_df = pd.read_excel("PPP_stu_details.xlsx")  # color & wearable type
+demand_df = pd.read_excel("Input_Files/PPP_stu_demand.xlsx")   # units sold
+stock_df  = pd.read_excel("Input_Files/PPP_stu_stock.xlsx")    # units available
+product_df = pd.read_excel("Input_Files/PPP_stu_products.xlsx") # product attributes (gender/category)
+details_df = pd.read_excel("Input_Files/PPP_stu_details.xlsx")  # color & wearable type
 
 # Rename 'units' so we can tell them apart after the merge
 demand_df = demand_df.rename(columns={"units": "units_sold"})
