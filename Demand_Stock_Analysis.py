@@ -7,11 +7,18 @@ import os
 # Set working directory to the location of this script
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+# Output mappen aanmaken
+plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Output_Files", "Stockout_analysis_plots")
+os.makedirs(plots_dir, exist_ok=True)
+
+def plot_path(filename):
+    return os.path.join(plots_dir, filename)
+
 # ─────────────────────────────────────────────
 # 1. Load data
 # ─────────────────────────────────────────────
-demand_df = pd.read_excel("Input_Files/PPP_stu_demand.xlsx")   # units sold
-stock_df  = pd.read_excel("Input_Files/PPP_stu_stock.xlsx")    # units available
+demand_df  = pd.read_excel("Input_Files/PPP_stu_demand.xlsx")   # units sold
+stock_df   = pd.read_excel("Input_Files/PPP_stu_stock.xlsx")    # units available
 product_df = pd.read_excel("Input_Files/PPP_stu_products.xlsx") # product attributes (gender/category)
 details_df = pd.read_excel("Input_Files/PPP_stu_details.xlsx")  # color & wearable type
 
@@ -108,7 +115,7 @@ size_analysis["size_rank"] = size_analysis["size"].map(
 size_analysis = size_analysis.sort_values("size_rank").drop(columns="size_rank")
 
 # --- Tab 4: Overstocked items (consistently low fill rate → excess stock) ---
-# Products × channel combos where avg fill_rate < 0.5 (sold less than half of stock on average)
+# Products × channel combos where avg fill_rate < 0.8 (sold less than 80% of stock on average)
 overstock = merged.groupby(["product_id", "channel_id"]).agg(
     avg_fill_rate  = ("fill_rate",    "mean"),
     total_unsold   = ("unsold_units", "sum"),
@@ -290,7 +297,7 @@ gender_city["avg_fill_rate"] = gender_city["avg_fill_rate"].round(3)
 gender_city = gender_city.sort_values(["channel_id", "gender"])
 
 # Wide pivot for easy comparison in Excel
-gender_city_pivot = gend_fill = gender_city.pivot(
+gender_city_pivot = gender_city.pivot(
     index="channel_id", columns="gender", values="stockout_rate_pct"
 ).reset_index()
 gender_city_pivot.columns.name = None
@@ -335,7 +342,7 @@ doc_rows = [
     ("Raw_Merged",               "Raw data", "Full merged table of demand vs stock for every product / city / year / size. Includes fill_rate (sold/stocked), unsold_units, stockout_flag, gender, Color, Wearable, price."),
     ("Stockout_By_Product",      "Summary",  "Stockout rate (%) and avg fill rate per product x season. Sorted by highest stockout rate. Use to identify which products ran out most across all sizes and cities."),
     ("Lost_Sales_By_Size",       "Summary",  "Stockout rate and fill rate aggregated by clothing size (XS to XXL). Shows if certain sizes are systematically under-stocked across all products and cities."),
-    ("Overstocked_Items",        "Summary",  "Product x city combinations with avg fill rate below 50%, meaning more than half of stocked units went unsold. Empty if no combos qualify."),
+    ("Overstocked_Items",        "Summary",  "Product x city combinations with avg fill rate below 80%, meaning more than 20% of stocked units went unsold. Empty if no combos qualify."),
     ("Stockout_By_Location",     "Summary",  "Overall stockout rate per city / channel. Ranked highest to lowest. Answers: which stores run out of stock the most?"),
     ("Location_Size_Heatmap",    "Pivot",    "Pivot table: city (rows) x size (columns), values = avg fill rate (0-1). A value near 1.0 means that city consistently sells out of that size. Good for spotting city-level sizing mismatches."),
     ("Product_Channel_Size",     "Detail",   "Stockout rate per product x city x size. Shows in how many seasons each specific combination stocked out. Filter stockout_rate_pct = 100 to find chronic issues."),
@@ -367,25 +374,26 @@ doc_rows = [
 
 doc_df = pd.DataFrame(doc_rows, columns=["Name", "Type", "Description"])
 
-output_file = "stockout_analysis.xlsx"
+output_file = "Output_Files/stockout_analysis.xlsx"
+os.makedirs("Output_Files", exist_ok=True)
 with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
-    doc_df.to_excel(writer,               sheet_name="README",                 index=False)
-    raw_merged.to_excel(writer,           sheet_name="Raw_Merged",           index=False)
-    stockout_summary.to_excel(writer,     sheet_name="Stockout_By_Product",  index=False)
-    size_analysis.to_excel(writer,        sheet_name="Lost_Sales_By_Size",   index=False)
-    overstock.to_excel(writer,            sheet_name="Overstocked_Items",    index=False)
-    location_summary.to_excel(writer,     sheet_name="Stockout_By_Location", index=False)
-    loc_size_pivot_reset.to_excel(writer, sheet_name="Location_Size_Heatmap",index=False)
-    prod_ch_size.to_excel(writer,         sheet_name="Product_Channel_Size", index=False)
-    gender_summary.to_excel(writer,       sheet_name="Stockout_By_Gender",   index=False)
-    color_summary.to_excel(writer,        sheet_name="Stockout_By_Color",    index=False)
-    wearable_summary.to_excel(writer,     sheet_name="Stockout_By_Wearable", index=False)
-    price_tier_summary.to_excel(writer,   sheet_name="Stockout_By_Price_Tier",index=False)
-    prod_price_stockout.to_excel(writer,  sheet_name="Price_vs_Stockout",    index=False)
-    chronic.to_excel(writer,              sheet_name="Chronic_Stockouts",    index=False)
-    gender_city.to_excel(writer,          sheet_name="Gender_By_City",       index=False)
-    gender_city_pivot.to_excel(writer,    sheet_name="Gender_By_City_Pivot", index=False)
-    city_combo.to_excel(writer,           sheet_name="City_Gender_Wearable_Size", index=False)
+    doc_df.to_excel(writer,               sheet_name="README",                      index=False)
+    raw_merged.to_excel(writer,           sheet_name="Raw_Merged",                  index=False)
+    stockout_summary.to_excel(writer,     sheet_name="Stockout_By_Product",         index=False)
+    size_analysis.to_excel(writer,        sheet_name="Lost_Sales_By_Size",          index=False)
+    overstock.to_excel(writer,            sheet_name="Overstocked_Items",           index=False)
+    location_summary.to_excel(writer,     sheet_name="Stockout_By_Location",        index=False)
+    loc_size_pivot_reset.to_excel(writer, sheet_name="Location_Size_Heatmap",       index=False)
+    prod_ch_size.to_excel(writer,         sheet_name="Product_Channel_Size",        index=False)
+    gender_summary.to_excel(writer,       sheet_name="Stockout_By_Gender",          index=False)
+    color_summary.to_excel(writer,        sheet_name="Stockout_By_Color",           index=False)
+    wearable_summary.to_excel(writer,     sheet_name="Stockout_By_Wearable",        index=False)
+    price_tier_summary.to_excel(writer,   sheet_name="Stockout_By_Price_Tier",      index=False)
+    prod_price_stockout.to_excel(writer,  sheet_name="Price_vs_Stockout",           index=False)
+    chronic.to_excel(writer,              sheet_name="Chronic_Stockouts",           index=False)
+    gender_city.to_excel(writer,          sheet_name="Gender_By_City",              index=False)
+    gender_city_pivot.to_excel(writer,    sheet_name="Gender_By_City_Pivot",        index=False)
+    city_combo.to_excel(writer,           sheet_name="City_Gender_Wearable_Size",   index=False)
 
 print(f"\nExcel saved → {output_file}")
 print("  Tabs: Raw_Merged | Stockout_By_Product | Lost_Sales_By_Size | Overstocked_Items")
@@ -416,7 +424,7 @@ ax.xaxis.set_major_formatter(mticker.PercentFormatter())
 ax.bar_label(bars, fmt="%.1f%%", padding=3)
 ax.grid(axis="x", linestyle="--", alpha=0.5)
 plt.tight_layout()
-plt.savefig("top_stockout_products.png", dpi=150)
+plt.savefig(plot_path("top_stockout_products.png"), dpi=150)
 plt.show()
 
 # ─────────────────────────────────────────────
@@ -449,7 +457,7 @@ for i in range(len(heatmap_data.index)):
                     color="black" if 0.3 < val < 0.8 else "white", fontsize=9)
 
 plt.tight_layout()
-plt.savefig("fillrate_heatmap.png", dpi=150)
+plt.savefig(plot_path("fillrate_heatmap.png"), dpi=150)
 plt.show()
 
 print("\nPlots saved: top_stockout_products.png | fillrate_heatmap.png")
@@ -470,7 +478,7 @@ ax.xaxis.set_major_formatter(mticker.PercentFormatter())
 ax.bar_label(bars, fmt="%.1f%%", padding=3)
 ax.grid(axis="x", linestyle="--", alpha=0.5)
 plt.tight_layout()
-plt.savefig("stockout_by_location.png", dpi=150)
+plt.savefig(plot_path("stockout_by_location.png"), dpi=150)
 plt.show()
 
 # ─────────────────────────────────────────────
@@ -500,7 +508,7 @@ for i in range(len(loc_size_pivot.index)):
                     color="black" if 0.25 < val < 0.85 else "white", fontsize=8)
 
 plt.tight_layout()
-plt.savefig("location_size_heatmap.png", dpi=150)
+plt.savefig(plot_path("location_size_heatmap.png"), dpi=150)
 plt.show()
 
 print("\nNew plots saved: stockout_by_location.png | location_size_heatmap.png")
@@ -518,7 +526,7 @@ ax.bar_label(bars, fmt="%.1f%%", padding=4, fontsize=11)
 ax.set_ylim(0, min(100, gender_summary["stockout_rate_pct"].max() * 1.2))
 ax.grid(axis="y", linestyle="--", alpha=0.5)
 plt.tight_layout()
-plt.savefig("stockout_by_gender.png", dpi=150)
+plt.savefig(plot_path("stockout_by_gender.png"), dpi=150)
 plt.show()
 
 # ─────────────────────────────────────────────
@@ -550,7 +558,7 @@ axes[1].grid(axis="x", linestyle="--", alpha=0.5)
 
 plt.suptitle("Stockout Rate by Product Attribute", fontsize=14, fontweight="bold", y=1.01)
 plt.tight_layout()
-plt.savefig("stockout_by_color_wearable.png", dpi=150, bbox_inches="tight")
+plt.savefig(plot_path("stockout_by_color_wearable.png"), dpi=150, bbox_inches="tight")
 plt.show()
 
 print("\nAttribute plots saved: stockout_by_gender.png | stockout_by_color_wearable.png")
@@ -594,7 +602,7 @@ ax.yaxis.set_major_formatter(mticker.PercentFormatter())
 ax.legend(title="Price Tier", fontsize=9)
 ax.grid(linestyle="--", alpha=0.4)
 plt.tight_layout()
-plt.savefig("price_vs_stockout_scatter.png", dpi=150)
+plt.savefig(plot_path("price_vs_stockout_scatter.png"), dpi=150)
 plt.show()
 
 # ─────────────────────────────────────────────
@@ -614,7 +622,7 @@ ax.bar_label(bars, fmt="%.1f%%", padding=4, fontsize=11)
 ax.set_ylim(0, min(105, price_tier_summary["stockout_rate_pct"].max() * 1.2))
 ax.grid(axis="y", linestyle="--", alpha=0.5)
 plt.tight_layout()
-plt.savefig("stockout_by_price_tier.png", dpi=150)
+plt.savefig(plot_path("stockout_by_price_tier.png"), dpi=150)
 plt.show()
 
 print("\nPrice plots saved: price_vs_stockout_scatter.png | stockout_by_price_tier.png")
@@ -654,7 +662,7 @@ ax.yaxis.set_major_formatter(mticker.PercentFormatter())
 ax.legend(title="Gender")
 ax.grid(axis="y", linestyle="--", alpha=0.4)
 plt.tight_layout()
-plt.savefig("gender_stockout_by_city.png", dpi=150)
+plt.savefig(plot_path("gender_stockout_by_city.png"), dpi=150)
 plt.show()
 
 # ─────────────────────────────────────────────
@@ -690,7 +698,8 @@ for i in range(len(city_wear_pivot.index)):
                     color="black" if 25 < val < 80 else "white", fontsize=8)
 
 plt.tight_layout()
-plt.savefig("city_wearable_heatmap.png", dpi=150)
+plt.savefig(plot_path("city_wearable_heatmap.png"), dpi=150)
 plt.show()
 
 print("\nCombo plots saved: gender_stockout_by_city.png | city_wearable_heatmap.png")
+print(f"\nKlaar! Alle plots staan in: Output_Files/Stockout_analysis_plots/")
