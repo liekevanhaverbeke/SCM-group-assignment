@@ -44,12 +44,10 @@ global_avg_fill = non_stockout["fill_rate"].mean()
 # -----------------------------
 all_combos = raw[["product_id", "channel_id"]].drop_duplicates()
 
-# Merge all stats together
 corrections = all_combos.merge(counts, on=["product_id", "channel_id"], how="left")
 corrections = corrections.merge(avg_fill_rate_exact, on=["product_id", "channel_id"], how="left")
 corrections = corrections.merge(product_avg_fill, on="product_id", how="left")
 
-# Determine which fill rate to use and label the fallback
 def determine_fallback(row):
     if not pd.isna(row["fill_rate_exact"]):
         return row["fill_rate_exact"], "Exact (Product x Channel)"
@@ -62,14 +60,13 @@ corrections[["avg_fill_rate", "fallback_used"]] = corrections.apply(
     lambda r: pd.Series(determine_fallback(r)), axis=1
 )
 
-# Clean up temporary columns for the final Sheet 2
 avg_fill_rate_final = corrections[[
     "product_id", "channel_id", "num_non_stockouts", "num_stockouts",
     "total_observations", "avg_fill_rate", "fallback_used"
 ]]
 
 # -----------------------------
-# Aggregate observed demand (Same as original)
+# Aggregate observed demand
 # -----------------------------
 observed = (
     raw.groupby(["product_id", "channel_id", "season", "size"])
@@ -78,9 +75,8 @@ observed = (
 )
 
 # -----------------------------
-# Compute True Demand (Using the merged corrections)
+# Compute True Demand
 # -----------------------------
-# We use the avg_fill_rate column from our new corrections table
 true_demand = observed.merge(
     avg_fill_rate_final[["product_id", "channel_id", "avg_fill_rate"]],
     on=["product_id", "channel_id"],
@@ -94,7 +90,7 @@ true_demand["true_demand"] = true_demand.apply(
 true_demand["correction"] = true_demand["true_demand"] - true_demand["units_sold"]
 
 # -----------------------------
-# Summary (Same as original)
+# Summary
 # -----------------------------
 summary = (
     true_demand.groupby(["product_id", "channel_id"])
@@ -113,6 +109,60 @@ summary["correction_pct"] = (
 ).round(2)
 
 # -----------------------------
+# Demand overview: observed vs corrected
+# Per season and per channel — simple totals for quick comparison
+# -----------------------------
+
+# By season
+by_season = (
+    true_demand.groupby("season")
+    .agg(
+        observed_demand=("units_sold", "sum"),
+        true_demand=("true_demand", "sum"),
+    )
+    .reset_index()
+)
+by_season["correction_units"] = by_season["true_demand"] - by_season["observed_demand"]
+by_season["correction_pct"] = (by_season["correction_units"] / by_season["observed_demand"] * 100).round(2)
+
+# By channel
+by_channel = (
+    true_demand.groupby("channel_id")
+    .agg(
+        observed_demand=("units_sold", "sum"),
+        true_demand=("true_demand", "sum"),
+    )
+    .reset_index()
+)
+by_channel["correction_units"] = by_channel["true_demand"] - by_channel["observed_demand"]
+by_channel["correction_pct"] = (by_channel["correction_units"] / by_channel["observed_demand"] * 100).round(2)
+by_channel = by_channel.sort_values("correction_pct", ascending=False)
+
+# By product
+by_product = (
+    true_demand.groupby("product_id")
+    .agg(
+        observed_demand=("units_sold", "sum"),
+        true_demand=("true_demand", "sum"),
+    )
+    .reset_index()
+)
+by_product["correction_units"] = by_product["true_demand"] - by_product["observed_demand"]
+by_product["correction_pct"] = (by_product["correction_units"] / by_product["observed_demand"] * 100).round(2)
+by_product = by_product.sort_values("correction_pct", ascending=False)
+
+# Overall totals row
+total_observed = true_demand["units_sold"].sum()
+total_true = true_demand["true_demand"].sum()
+overall = pd.DataFrame([{
+    "level": "TOTAL",
+    "observed_demand": total_observed,
+    "true_demand": total_true,
+    "correction_units": total_true - total_observed,
+    "correction_pct": round((total_true - total_observed) / total_observed * 100, 2)
+}])
+
+# -----------------------------
 # Write to Excel
 # -----------------------------
 OUTPUT_FILE = "true_demand.xlsx"
@@ -123,10 +173,10 @@ with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
         writer, sheet_name="true_demand_full", index=False
     )
 
-    # Sheet 2: UPDATED corrections with counts and fallback labels
+    # Sheet 2: corrections with counts and fallback labels
     avg_fill_rate_final.to_excel(writer, sheet_name="fill_rate_corrections", index=False)
 
-    # Sheet 3: summary
+    # Sheet 3: summary per product x channel
     summary.to_excel(writer, sheet_name="summary_product_channel", index=False)
 
     # Sheet 4: pivot
@@ -134,5 +184,25 @@ with pd.ExcelWriter(OUTPUT_FILE, engine="openpyxl") as writer:
     pivot.columns.name = None
     pivot.to_excel(writer, sheet_name="true_demand_pivot", index=False)
 
+    # Sheet 5: demand overview — observed vs corrected by season, channel, product
+    row = 0
+    ws = writer.book.create_sheet("demand_overview")
+    writer.sheets["demand_overview"] = ws
+
+    # Overall total
+    for df_part, label in [
+        (overall.rename(columns={"level": ""}), "Overall"),
+        (by_season.rename(columns={"season": "season"}), "By Season"),
+        (by_channel.rename(columns={"channel_id": "channel"}), "By Channel"),
+        (by_product.rename(columns={"product_id": "product"}), "By Product"),
+    ]:
+        ws.cell(row=row+1, column=1, value=label)
+        for col_idx, col_name in enumerate(df_part.columns, start=1):
+            ws.cell(row=row+2, column=col_idx, value=col_name)
+        for r_idx, data_row in enumerate(df_part.itertuples(index=False), start=row+3):
+            for col_idx, val in enumerate(data_row, start=1):
+                ws.cell(row=r_idx, column=col_idx, value=val)
+        row += len(df_part) + 4
+
 print(f"\nAll outputs saved to {OUTPUT_FILE}")
-print(f"Sheet 'fill_rate_corrections' now includes observation counts and fallback tracking.")
+print(f"\nOverall: {total_observed:,} observed → {total_true:,} true demand (+{(total_true/total_observed-1)*100:.1f}%)")
