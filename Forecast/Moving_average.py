@@ -11,7 +11,7 @@ import numpy as np
 import os
 
 # ── 1. Data laden & aggregeren ───────────────────────────────────────────────
-input_path = "True demand/True demand Simeon/True_Demand_Results_3.xlsx"
+input_path = "True demand/True demand Simeon/True_Demand_Results.xlsx"
 sheet_name = "1_True_Demand_Lijst"
 demand_col = "true_demand"
 

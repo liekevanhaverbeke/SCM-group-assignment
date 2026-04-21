@@ -9,9 +9,18 @@ Vraagvoorspelling 2026 via Holt's Methode (Double Exponential Smoothing)
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_absolute_error
+import os
 
 # ── 1. Data laden & aggregeren ───────────────────────────────────────────────
-df = pd.read_excel("True demand/true_demand.xlsx", sheet_name=0)
+input_path = "True demand/True demand Simeon/True_Demand_Results.xlsx"
+sheet_name = "1_True_Demand_Lijst"
+demand_col = "true_demand"
+
+print("=" * 70)
+print("Dataset laden:", os.path.basename(input_path))
+print("=" * 70)
+
+df = pd.read_excel(input_path, sheet_name=sheet_name)
 agg = (
     df.groupby(["channel_id", "season", "product_id"])["true_demand"]
     .sum()
