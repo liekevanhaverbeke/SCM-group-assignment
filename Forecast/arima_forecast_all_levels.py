@@ -18,11 +18,31 @@ warnings.filterwarnings("ignore")
 INPUT_PATH = "True demand/True demand Simeon/True_Demand_Results.xlsx"
 SHEET_NAME = "1_True_Demand_Lijst"
 
+# Region mapping
+REGION_MAP = {
+    'Platform': 'Online',
+    'Webshop': 'Online',
+    'Helsinki': 'Scandinavian',
+    'Copenhagen': 'Scandinavian',
+    'Stockholm': 'Scandinavian',
+    'Amsterdam': 'European',
+    'Berlin': 'European',
+    'Brussels': 'European',
+    'Madrid': 'European',
+    'Paris': 'European',
+    'Rome': 'European'
+}
+
 LEVELS = [
     {
         "name": "TOTAL",
         "group_cols": [],
         "output_xlsx": "Forecast/arima_total.xlsx"
+    },
+    {
+        "name": "REGION",
+        "group_cols": ["region"],
+        "output_xlsx": "Forecast/arima_region.xlsx"
     },
     {
         "name": "CITY",
@@ -67,8 +87,12 @@ def run_level(df, config):
     agg = df.groupby(group_by)["true_demand"].sum().reset_index().rename(columns={"season": "jaar"})
     
     # Normalizeer kolomnamen voor consistentie in output
-    if "channel_id" in agg.columns: agg = agg.rename(columns={"channel_id": "stad"})
-    else: agg["stad"] = "TOTAL_COMPANY"
+    if "channel_id" in agg.columns: 
+        agg = agg.rename(columns={"channel_id": "stad"})
+    elif "region" in agg.columns:
+        agg = agg.rename(columns={"region": "stad"})
+    else: 
+        agg["stad"] = "TOTAL_COMPANY"
     
     if "product_id" in agg.columns: agg = agg.rename(columns={"product_id": "product"})
     else: agg["product"] = "ALL"
@@ -157,6 +181,9 @@ def main():
     
     print(f"Data laden: {INPUT_PATH}...")
     df = pd.read_excel(INPUT_PATH, sheet_name=SHEET_NAME)
+    
+    # Apply region mapping
+    df['region'] = df['channel_id'].map(REGION_MAP).fillna('Other')
     
     for config in LEVELS:
         run_level(df, config)
