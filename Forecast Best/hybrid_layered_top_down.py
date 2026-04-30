@@ -199,9 +199,24 @@ def run_hybrid_layered_pipeline(df, target_year):
     res = pd.merge(res, prod_avg, on=['channel_id', 'category', 'price_bracket'], how='left')
     res['forecast_product'] = res['forecast_price'] * (res['share_within_bracket'] / 100.0)
     res = res.dropna(subset=['product_id'])
-    # Apply Size
-    res = pd.merge(res, size_avg, on=['channel_id', 'category'], how='left')
-    res['forecast_sku'] = res['forecast_product'] * (res['size_pct'] / 100.0)
+    # Separate onesize products (those that ONLY have 'onesize' in history)
+    # This avoids distributing accessories/onesize items into S/M/L etc.
+    prod_sizes = history.groupby('product_id')['size'].unique()
+    onesize_prods = prod_sizes[prod_sizes.apply(lambda x: len(x) == 1 and x[0] == 'onesize')].index.tolist()
+    
+    res_onesize = res[res['product_id'].isin(onesize_prods)].copy()
+    res_sized = res[~res['product_id'].isin(onesize_prods)].copy()
+    
+    # Apply Size distribution only for sized products
+    res_sized = pd.merge(res_sized, size_avg, on=['channel_id', 'category'], how='left')
+    res_sized['forecast_sku'] = res_sized['forecast_product'] * (res_sized['size_pct'] / 100.0)
+    
+    # For onesize products, we keep them as 'onesize' with 100% of the forecast
+    res_onesize['size'] = 'onesize'
+    res_onesize['forecast_sku'] = res_onesize['forecast_product']
+    
+    # Recombine both types
+    res = pd.concat([res_sized, res_onesize], ignore_index=True)
     
     res['season'] = target_year
     return res[['channel_id', 'season', 'product_id', 'size', 'forecast_sku']]
@@ -260,8 +275,19 @@ def main():
         product_metrics.to_excel(writer, sheet_name='Metrics_per_Product', index=False)
         city_metrics.to_excel(writer, sheet_name='Metrics_per_City', index=False)
 
-    fc_2026.to_excel('Forecast/hybrid_layered_sku_forecast_2026.xlsx', index=False)
-    print(f"DONE! SKU Forecast Total: {fc_2026['forecast_sku'].sum():.2f}")
+    # Prepare the output file with the requested columns: stad, product, maat, forecast_2026
+    output_2026 = fc_2026.rename(columns={
+        'channel_id': 'stad',
+        'product_id': 'product',
+        'size': 'maat',
+        'forecast_sku': 'forecast_2026'
+    })[['stad', 'product', 'maat', 'forecast_2026']]
+    
+    # Delete rows if the forecast is 0
+    output_2026 = output_2026[output_2026['forecast_2026'] > 0]
+
+    output_2026.to_excel('Forecast/hybrid_layered_sku_forecast_2026.xlsx', sheet_name='Forecast_2026', index=False)
+    print(f"DONE! SKU Forecast Total: {output_2026['forecast_2026'].sum():.2f}")
 
 if __name__ == "__main__":
     main()
