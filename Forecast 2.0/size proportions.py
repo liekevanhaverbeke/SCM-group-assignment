@@ -127,9 +127,9 @@ def calculate_size_proportions(df):
     Calculates the percentage of sales for each size per channel, season, and category.
     """
     df_filtered = df[df['size'].str.lower() != 'onesize']
-    size_stats = df_filtered.groupby(['channel_id', 'season', 'category', 'size'])['units_sold'].sum().reset_index()
-    size_stats['total_units'] = size_stats.groupby(['channel_id', 'season', 'category'])['units_sold'].transform('sum')
-    size_stats['percentage'] = (size_stats['units_sold'] / size_stats['total_units']) * 100
+    size_stats = df_filtered.groupby(['channel_id', 'season', 'category', 'size'])['true_demand'].sum().reset_index()
+    size_stats['total_units'] = size_stats.groupby(['channel_id', 'season', 'category'])['true_demand'].transform('sum')
+    size_stats['percentage'] = (size_stats['true_demand'] / size_stats['total_units']) * 100
     
     report = size_stats.pivot(index=['channel_id', 'season', 'category'], columns='size', values='percentage').reset_index().fillna(0)
     
@@ -140,17 +140,59 @@ def calculate_size_proportions(df):
 def calculate_product_size_proportions(df):
     """
     Calculates the size proportions for each product across all cities.
+    This aggregates demand over all cities to find the global size distribution for each product.
     """
+    # Filter out onesize
     df_filtered = df[df['size'].str.lower() != 'onesize']
-    product_stats = df_filtered.groupby(['product_id', 'season', 'size'])['units_sold'].sum().reset_index()
-    product_stats['total_units'] = product_stats.groupby(['product_id', 'season'])['units_sold'].transform('sum')
-    product_stats['percentage'] = (product_stats['units_sold'] / product_stats['total_units']) * 100
     
-    report = product_stats.pivot(index=['product_id', 'season'], columns='size', values='percentage').reset_index().fillna(0)
+    # Group by product, season and category to keep metadata
+    # Sum true_demand across all cities (channels)
+    product_stats = df_filtered.groupby(['product_id', 'season', 'category', 'size'])['true_demand'].sum().reset_index()
+    
+    # Calculate total demand per product-season
+    product_stats['total_product_demand'] = product_stats.groupby(['product_id', 'season'])['true_demand'].transform('sum')
+    
+    # Calculate proportion
+    product_stats['size_proportion'] = (product_stats['true_demand'] / product_stats['total_product_demand']) * 100
+    
+    # Pivot for output
+    report = product_stats.pivot(
+        index=['product_id', 'season', 'category'], 
+        columns='size', 
+        values='size_proportion'
+    ).reset_index().fillna(0)
     
     os.makedirs("Bert Map", exist_ok=True)
     report.to_excel("Bert Map/size_proportions_by_product.xlsx", index=False)
-    print("Product size proportions saved.")
+    print("Product size proportions (global aggregate) saved to: Bert Map/size_proportions_by_product.xlsx")
+
+def calculate_product_channel_size_proportions(df):
+    """
+    Calculates the size proportions for each product per channel, aggregated over all years (seasons).
+    """
+    # Filter out onesize
+    df_filtered = df[df['size'].str.lower() != 'onesize']
+    
+    # Group by product, channel, category and size (ignoring season)
+    # Sum true_demand over all years
+    product_stats = df_filtered.groupby(['product_id', 'channel_id', 'category', 'size'])['true_demand'].sum().reset_index()
+    
+    # Calculate total demand per product-channel
+    product_stats['total_demand'] = product_stats.groupby(['product_id', 'channel_id'])['true_demand'].transform('sum')
+    
+    # Calculate proportion
+    product_stats['size_proportion'] = (product_stats['true_demand'] / product_stats['total_demand']) * 100
+    
+    # Pivot for output
+    report = product_stats.pivot(
+        index=['product_id', 'channel_id', 'category'], 
+        columns='size', 
+        values='size_proportion'
+    ).reset_index().fillna(0)
+    
+    os.makedirs("Bert Map", exist_ok=True)
+    report.to_excel("Bert Map/size_proportions_by_product_channel.xlsx", index=False)
+    print("Product x Channel size proportions saved to: Bert Map/size_proportions_by_product_channel.xlsx")
 
 def main():
     df_true_demand = pd.read_excel(INPUT_PATH, sheet_name=SHEET_NAME)
@@ -163,6 +205,7 @@ def main():
     calculate_product_shares_within_brackets(df) # New detailed share function
     calculate_size_proportions(df)
     calculate_product_size_proportions(df)
+    calculate_product_channel_size_proportions(df)
 
 if __name__ == "__main__":
     main()

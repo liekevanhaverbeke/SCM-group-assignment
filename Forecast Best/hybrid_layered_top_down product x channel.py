@@ -132,12 +132,12 @@ def load_layered_proportions(target_year):
     prod_avg['share_within_bracket'] = (prod_avg['share_within_bracket'] / prod_avg.groupby(['channel_id', 'category', 'price_bracket'])['share_within_bracket'].transform('sum') * 100).fillna(0)
     
     # 4. SIZE
-    size_prop = pd.read_excel('Bert Map/size_proportions_by_product.xlsx')
-    size_prop = size_prop[size_prop['season'] < target_year].copy()
-    size_cols = [c for c in size_prop.columns if c not in ['product_id', 'season', 'category']]
-    size_avg = size_prop.melt(id_vars=['product_id', 'season', 'category'], value_vars=size_cols, var_name='size', value_name='size_pct')
-    size_avg = size_avg.groupby(['product_id', 'size'])['size_pct'].sum().reset_index()
-    size_avg['size_pct'] = (size_avg['size_pct'] / size_avg.groupby(['product_id'])['size_pct'].transform('sum') * 100).fillna(0)
+    size_prop = pd.read_excel('Bert Map/size_proportions_by_product_channel.xlsx')
+    # No season filter since this file is aggregated over all years
+    size_cols = [c for c in size_prop.columns if c not in ['product_id', 'channel_id', 'category']]
+    size_avg = size_prop.melt(id_vars=['product_id', 'channel_id', 'category'], value_vars=size_cols, var_name='size', value_name='size_pct')
+    size_avg = size_avg.groupby(['product_id', 'channel_id', 'size'])['size_pct'].sum().reset_index()
+    size_avg['size_pct'] = (size_avg['size_pct'] / size_avg.groupby(['product_id', 'channel_id'])['size_pct'].transform('sum') * 100).fillna(0)
                                       
     return gender_avg, price_avg, prod_avg, size_avg
 
@@ -208,7 +208,7 @@ def run_hybrid_layered_pipeline(df, target_year):
     res_sized = res[~res['product_id'].isin(onesize_prods)].copy()
     
     # Apply Size distribution only for sized products
-    res_sized = pd.merge(res_sized, size_avg, on=['product_id'], how='left')
+    res_sized = pd.merge(res_sized, size_avg, on=['product_id', 'channel_id'], how='left')
     res_sized['forecast_sku'] = res_sized['forecast_product'] * (res_sized['size_pct'] / 100.0)
     
     # For onesize products, we keep them as 'onesize' with 100% of the forecast
@@ -286,7 +286,7 @@ def main():
     # Delete rows if the forecast is 0
     output_2026 = output_2026[output_2026['forecast_2026'] > 0]
 
-    output_2026.to_excel('Forecast Best/hybrid_layered_sku_forecast_2026.xlsx', sheet_name='Forecast_2026', index=False)
+    output_2026.to_excel('Forecast Best/hybrid_layered_sku_forecast_2026_product_x_channel.xlsx', sheet_name='Forecast_2026', index=False)
     print(f"DONE! SKU Forecast Total: {output_2026['forecast_2026'].sum():.2f}")
 
 if __name__ == "__main__":
