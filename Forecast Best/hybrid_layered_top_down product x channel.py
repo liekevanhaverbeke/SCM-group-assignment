@@ -269,7 +269,7 @@ def main():
     print("\nGenerating Forecast for 2026...")
     fc_2026 = run_hybrid_layered_pipeline(raw_demand, 2026)
     
-    with pd.ExcelWriter('Forecast Best/hybrid_layered_validation_all_years.xlsx') as writer:
+    with pd.ExcelWriter('Forecast Best/hybrid_layered_validation_all_years_product_x_channel.xlsx') as writer:
         val_df.to_excel(writer, sheet_name='SKU_Validation', index=False)
         yearly.to_excel(writer, sheet_name='Yearly_Metrics', index=False)
         product_metrics.to_excel(writer, sheet_name='Metrics_per_Product', index=False)

@@ -74,7 +74,7 @@ def main():
     print("="*50)
     print(city_metrics.sort_values(by='MAE', ascending=False).to_string(index=False))
     
-    output_file = 'Forecast/baseline_validation_all_years.xlsx'
+    output_file = 'Validation files/baseline_validation_all_years.xlsx'
     with pd.ExcelWriter(output_file) as writer:
         validation_df.to_excel(writer, sheet_name='SKU_Validation', index=False)
         yearly_metrics.to_excel(writer, sheet_name='Yearly_Metrics', index=False)
