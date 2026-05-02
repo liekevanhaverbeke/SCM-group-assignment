@@ -236,24 +236,39 @@ def main():
     val_df = pd.concat(all_val, ignore_index=True)
     val_df = pd.merge(val_df, sku_actuals, on=['channel_id', 'season', 'product_id', 'size'], how='outer')
     val_df = val_df[val_df['season'].isin(years)].fillna(0)
-    val_df['abs_error'] = abs(val_df['forecast_sku'] - val_df['actual_demand'])
-    val_df['sq_error'] = (val_df['forecast_sku'] - val_df['actual_demand'])**2
+    val_df['raw_error'] = val_df['actual_demand'] - val_df['forecast_sku'] 
+    val_df['abs_error'] = abs(val_df['raw_error'])
+    val_df['sq_error'] = val_df['raw_error']**2
+
+    # MAPE_val: Mean Absolute Percentage Error (uses abs_error)
+    val_df['MAPE_val'] = np.where(val_df['actual_demand'] != 0, 
+                                  val_df['abs_error'] / val_df['actual_demand'], 
+                                  0)
     
+    # MPE_val: Mean Percentage Error (uses raw_error to show bias)
+    val_df['MPE_val'] = np.where(val_df['actual_demand'] != 0, 
+                                 val_df['raw_error'] / val_df['actual_demand'], 
+                                 0)
+
     print("\n" + "="*50 + "\nOVERALL HYBRID LAYERED PERFORMANCE\n" + "="*50)
-    yearly = val_df.groupby('season').agg(MAE=('abs_error', 'mean'), MSE=('sq_error', 'mean')).reset_index()
+    yearly = val_df.groupby('season').agg(MAE=('abs_error', 'mean'), MSE=('sq_error', 'mean'), MAPE=('MAPE_val', 'mean'), MPE=('MPE_val', 'mean')).reset_index()
     print(yearly.to_string(index=False))
     print(f"\nCOMBINED MAE: {val_df['abs_error'].mean():.2f}")
     
     # Aggregations per Product
     product_metrics = val_df.groupby('product_id').agg(
         MSE=('sq_error', 'mean'),
-        MAE=('abs_error', 'mean')
+        MAE=('abs_error', 'mean'),
+        MAPE=('MAPE_val', 'mean'),
+        MPE=('MPE_val', 'mean') 
     ).reset_index()
     
     # Aggregations per City
     city_metrics = val_df.groupby('channel_id').agg(
         MSE=('sq_error', 'mean'),
-        MAE=('abs_error', 'mean')
+        MAE=('abs_error', 'mean'),
+        MAPE=('MAPE_val', 'mean'),
+        MPE=('MPE_val', 'mean')
     ).reset_index()
     
     print("\n" + "="*50)

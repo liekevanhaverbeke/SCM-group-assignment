@@ -32,22 +32,38 @@ def main():
     validation_df['actual_demand'] = validation_df['actual_demand'].fillna(0)
     
     # Calculate errors
-    validation_df['absolute_error'] = abs(validation_df['forecast_sku'] - validation_df['actual_demand'])
-    validation_df['squared_error'] = (validation_df['forecast_sku'] - validation_df['actual_demand'])**2
+    validation_df['raw_error'] = validation_df['actual_demand'] - validation_df['forecast_sku']
+    validation_df['absolute_error'] = abs(validation_df['raw_error'])
+    validation_df['squared_error'] = (validation_df['raw_error'])**2
     
+    # MAPE_val calculation
+    validation_df['MAPE_val'] = np.where(validation_df['actual_demand'] != 0, 
+                                         validation_df['absolute_error'] / validation_df['actual_demand'], 
+                                         0)
+    
+    # MPE_val calculation (shows over/under forecast bias)
+    validation_df['MPE_val'] = np.where(validation_df['actual_demand'] != 0, 
+                                        validation_df['raw_error'] / validation_df['actual_demand'], 
+                                        0)
+
+
     print("\n" + "="*50)
     print("YEARLY NAIVE BASELINE PERFORMANCE (Last Year = This Year)")
     print("="*50)
     
     yearly_metrics = validation_df.groupby('season').agg(
         MAE=('absolute_error', 'mean'),
-        MSE=('squared_error', 'mean')
+        MSE=('squared_error', 'mean'),
+        MAPE=('MAPE_val', 'mean'),
+        MPE=('MPE_val', 'mean')
     ).reset_index()
     
     for _, row in yearly_metrics.iterrows():
         print(f"--- {int(row['season'])} ---")
         print(f"MAE: {row['MAE']:.2f}")
         print(f"MSE: {row['MSE']:.2f}\n")
+        print(f"MAPE: {row['MAPE']:.2%}")
+        print(f"MPE: {row['MPE']:.2%}\n")
         
     print(f"OVERALL COMBINED MAE (2020-2025): {validation_df['absolute_error'].mean():.2f}")
     print(f"OVERALL COMBINED MSE (2020-2025): {validation_df['squared_error'].mean():.2f}")
@@ -55,13 +71,17 @@ def main():
     # Aggregations per Product
     product_metrics = validation_df.groupby('product_id').agg(
         MSE=('squared_error', 'mean'),
-        MAE=('absolute_error', 'mean')
+        MAE=('absolute_error', 'mean'),
+        MAPE=('MAPE_val', 'mean'),
+        MPE=('MPE_val', 'mean')
     ).reset_index()
     
     # Aggregations per City
     city_metrics = validation_df.groupby('channel_id').agg(
         MSE=('squared_error', 'mean'),
-        MAE=('absolute_error', 'mean')
+        MAE=('absolute_error', 'mean'),
+        MAPE=('MAPE_val', 'mean'),
+        MPE=('MPE_val', 'mean')
     ).reset_index()
     
     print("\n" + "="*50)
